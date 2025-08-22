@@ -6,12 +6,19 @@ import (
 )
 
 type Config struct {
+	App      AppConfig
 	Database DatabaseConfig
 	Redis    RedisConfig
 	Queue    QueueConfig
 	Server   ServerConfig
 	JWT      JWTConfig
 	External ExternalConfig
+}
+
+type AppConfig struct {
+	Environment string
+	Name        string
+	Version     string
 }
 
 type DatabaseConfig struct {
@@ -68,6 +75,11 @@ type EmailConfig struct {
 
 func Load() *Config {
 	return &Config{
+		App: AppConfig{
+			Environment: getEnv("APP_ENV", "development"),
+			Name:        getEnv("APP_NAME", "Weave"),
+			Version:     getEnv("APP_VERSION", "1.0.0"),
+		},
 		Database: DatabaseConfig{
 			Host:     getEnv("DB_HOST", "localhost"),
 			Port:     getEnv("DB_PORT", "5432"),

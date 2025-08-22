@@ -31,6 +31,13 @@ func main() {
 		log.Fatalf("Failed to run database migrations: %v", err)
 	}
 
+	// Seed database in development mode
+	if cfg.App.Environment == "development" {
+		if err := database.SeedData(); err != nil {
+			log.Printf("Failed to seed database: %v", err)
+		}
+	}
+
 	// Connect to Redis
 	if err := redis.Connect(cfg); err != nil {
 		log.Fatalf("Failed to connect to Redis: %v", err)

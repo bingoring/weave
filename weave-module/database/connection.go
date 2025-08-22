@@ -39,18 +39,36 @@ func Migrate() error {
 	}
 
 	err := DB.AutoMigrate(
+		// User models
 		&models.User{},
 		&models.UserFollow{},
 		&models.UserProfile{},
+		
+		// Channel models
 		&models.Channel{},
+		
+		// Core Weave models
 		&models.Weave{},
 		&models.WeaveVersion{},
+		&models.WeaveTimeline{},
 		&models.WeaveLike{},
 		&models.WeaveTag{},
 		&models.WeaveCollection{},
+		
+		// Collaboration models
 		&models.Contribution{},
-		&models.LabComment{},
+		&models.ContributionComment{},
 		&models.ContributionVote{},
+		&models.LabComment{},
+		
+		// Analytics models
+		&models.WeaveView{},
+		&models.WeaveAnalytics{},
+		&models.UserAnalytics{},
+		&models.DailyStats{},
+		&models.TrendingWeave{},
+		
+		// Notification models
 		&models.Notification{},
 		&models.NotificationSetting{},
 	)
