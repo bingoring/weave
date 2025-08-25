@@ -4,101 +4,93 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"weave-module/config"
 	"weave-module/errors"
+	"weave-module/oauth"
+	"weave-be/internal/application/commands"
 	"weave-be/internal/application/dto"
-	"weave-be/internal/domain/entities"
+	"weave-be/internal/application/queries"
+	"weave-be/internal/application/usecases/user"
 	"weave-be/internal/domain/repositories"
 	"weave-be/internal/domain/services"
 )
 
-// UserApplicationService handles application-level user operations
-// This follows the Application Service pattern and orchestrates domain services
-type UserApplicationService interface {
-	RegisterUser(ctx context.Context, req dto.RegisterUserRequest) (*dto.UserResponse, error)
-	LoginUser(ctx context.Context, req dto.LoginUserRequest) (*dto.LoginResponse, error)
-	GetUserProfile(ctx context.Context, userID uuid.UUID) (*dto.UserProfileResponse, error)
-	GetUserByID(ctx context.Context, userID uuid.UUID) (*dto.UserResponse, error)
-	UpdateUserProfile(ctx context.Context, userID uuid.UUID, req dto.UpdateUserProfileRequest) (*dto.UserResponse, error)
-	FollowUser(ctx context.Context, followerID, followingID uuid.UUID) error
-	UnfollowUser(ctx context.Context, followerID, followingID uuid.UUID) error
-	GetFollowers(ctx context.Context, userID uuid.UUID, page, limit int) (*dto.PaginatedUsersResponse, error)
-	GetFollowing(ctx context.Context, userID uuid.UUID, page, limit int) (*dto.PaginatedUsersResponse, error)
-	SearchUsers(ctx context.Context, query string, page, limit int) (*dto.PaginatedUsersResponse, error)
+// UserApplicationService orchestrates user-related use cases
+type UserApplicationService struct {
+	// Use Cases  
+	getUserProfileUC  *user.GetUserProfileUseCase
+	followUserUC      *user.FollowUserUseCase
+	unfollowUserUC    *user.UnfollowUserUseCase
+	searchUsersUC     *user.SearchUsersUseCase
+	getFollowersUC    *user.GetFollowersUseCase
+	getFollowingUC    *user.GetFollowingUseCase
+	
+	// Email Authentication Use Cases
+	sendEmailVerificationUC *user.SendEmailVerificationUseCase
+	verifyEmailAuthUC       *user.VerifyEmailAuthUseCase
+	
+	// OAuth Use Cases
+	googleOAuthLoginUC   *user.GoogleOAuthLoginUseCase
+	googleOAuthConnectUC *user.GoogleOAuthConnectUseCase
+	
+	// Direct repository access for simple operations
+	userRepo repositories.UserRepository
 }
 
-type userApplicationService struct {
-	userRepo        repositories.UserRepository
-	userDomainSvc   services.UserDomainService
-}
-
-// NewUserApplicationService creates a new user application service
+// NewUserApplicationService creates a new UserApplicationService with all use cases
 func NewUserApplicationService(
 	userRepo repositories.UserRepository,
-	userDomainSvc services.UserDomainService,
-) UserApplicationService {
-	return &userApplicationService{
-		userRepo:      userRepo,
-		userDomainSvc: userDomainSvc,
-	}
-}
-
-func (s *userApplicationService) RegisterUser(ctx context.Context, req dto.RegisterUserRequest) (*dto.UserResponse, error) {
-	// Validate request
-	if err := req.Validate(); err != nil {
-		return nil, errors.BadRequestWithDetails("Invalid registration data", err.Error())
-	}
-
-	// Use domain service to handle business logic
-	user, err := s.userDomainSvc.RegisterUser(ctx, req.Username, req.Email, req.Password)
-	if err != nil {
-		return nil, err
-	}
-
-	// Convert to DTO
-	return dto.UserToResponse(user), nil
-}
-
-func (s *userApplicationService) LoginUser(ctx context.Context, req dto.LoginUserRequest) (*dto.LoginResponse, error) {
-	// Validate request
-	if err := req.Validate(); err != nil {
-		return nil, errors.BadRequestWithDetails("Invalid login data", err.Error())
-	}
-
-	// Use domain service for authentication
-	user, token, err := s.userDomainSvc.AuthenticateUser(ctx, req.Email, req.Password)
-	if err != nil {
-		return nil, err
-	}
-
-	// Convert to DTO
-	return &dto.LoginResponse{
-		User:  *dto.UserToResponse(user),
-		Token: token,
-	}, nil
-}
-
-func (s *userApplicationService) GetUserProfile(ctx context.Context, userID uuid.UUID) (*dto.UserProfileResponse, error) {
-	user, err := s.userRepo.GetByID(ctx, userID)
-	if err != nil {
-		return nil, errors.NotFound("User not found")
-	}
-
-	// Get additional profile data
-	followersCount, _ := s.userRepo.GetFollowersCount(ctx, userID)
-	followingCount, _ := s.userRepo.GetFollowingCount(ctx, userID)
+	weaveRepo repositories.WeaveRepository,
+	userDomainService services.UserDomainService,
+	emailVerificationRepo repositories.EmailVerificationRepository,
+	cfg *config.Config,
+) *UserApplicationService {
+	oauthService := oauth.NewOAuthService(cfg.OAuth)
 	
-	// TODO: Get weaves count, contributions count etc.
-	
-	return &dto.UserProfileResponse{
-		User:           *dto.UserToResponse(user),
-		FollowersCount: int(followersCount),
-		FollowingCount: int(followingCount),
-		WeavesCount:    0, // TODO: implement
-		ContributionsCount: 0, // TODO: implement
-	}, nil
+	return &UserApplicationService{
+		getUserProfileUC:  user.NewGetUserProfileUseCase(userRepo, weaveRepo),
+		followUserUC:      user.NewFollowUserUseCase(userDomainService),
+		unfollowUserUC:    user.NewUnfollowUserUseCase(userDomainService),
+		searchUsersUC:     user.NewSearchUsersUseCase(userRepo),
+		getFollowersUC:    user.NewGetFollowersUseCase(userRepo),
+		getFollowingUC:    user.NewGetFollowingUseCase(userRepo),
+		sendEmailVerificationUC: user.NewSendEmailVerificationUseCase(emailVerificationRepo),
+		verifyEmailAuthUC:       user.NewVerifyEmailAuthUseCase(emailVerificationRepo, userRepo, cfg),
+		googleOAuthLoginUC:   user.NewGoogleOAuthLoginUseCase(userRepo, userDomainService, oauthService, cfg),
+		googleOAuthConnectUC: user.NewGoogleOAuthConnectUseCase(userRepo, oauthService),
+		userRepo:          userRepo,
+	}
 }
 
-func (s *userApplicationService) GetUserByID(ctx context.Context, userID uuid.UUID) (*dto.UserResponse, error) {
+// SendEmailVerification sends verification code to email
+func (s *UserApplicationService) SendEmailVerification(ctx context.Context, email string) (*user.SendEmailVerificationResponse, error) {
+	cmd := user.SendEmailVerificationCommand{
+		Email: email,
+	}
+
+	return s.sendEmailVerificationUC.Execute(ctx, cmd)
+}
+
+// VerifyEmailAuth verifies email code and logs user in
+func (s *UserApplicationService) VerifyEmailAuth(ctx context.Context, code string) (*dto.LoginResponse, error) {
+	cmd := user.VerifyEmailAuthCommand{
+		Code: code,
+	}
+
+	return s.verifyEmailAuthUC.Execute(ctx, cmd)
+}
+
+// GetUserProfile gets user profile with additional statistics
+func (s *UserApplicationService) GetUserProfile(ctx context.Context, userID uuid.UUID) (*dto.UserProfileResponse, error) {
+	query := queries.GetUserProfileQuery{
+		UserID: userID,
+	}
+
+	return s.getUserProfileUC.Execute(ctx, query)
+}
+
+// GetUserByID gets user by ID (simple operation)
+func (s *UserApplicationService) GetUserByID(ctx context.Context, userID uuid.UUID) (*dto.UserResponse, error) {
 	user, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
 		return nil, errors.NotFound("User not found")
@@ -107,107 +99,102 @@ func (s *userApplicationService) GetUserByID(ctx context.Context, userID uuid.UU
 	return dto.UserToResponse(user), nil
 }
 
-func (s *userApplicationService) UpdateUserProfile(ctx context.Context, userID uuid.UUID, req dto.UpdateUserProfileRequest) (*dto.UserResponse, error) {
+// UpdateUserProfile updates user profile
+func (s *UserApplicationService) UpdateUserProfile(ctx context.Context, userID uuid.UUID, req dto.UpdateUserProfileRequest) (*dto.UserResponse, error) {
 	// Validate request
 	if err := req.Validate(); err != nil {
 		return nil, errors.BadRequestWithDetails("Invalid profile update data", err.Error())
 	}
 
-	// Use domain service
-	err := s.userDomainSvc.UpdateUserProfile(ctx, userID, req.ProfileImage, req.Bio)
+	// For now, keep this simple - could be moved to a use case later
+	_, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
-		return nil, err
+		return nil, errors.NotFound("User not found")
+	}
+
+	err = s.userRepo.UpdateProfile(ctx, userID, req.ProfileImage, req.Bio)
+	if err != nil {
+		return nil, errors.InternalServerError("Failed to update profile")
 	}
 
 	// Get updated user
-	user, err := s.userRepo.GetByID(ctx, userID)
+	updatedUser, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
 		return nil, errors.InternalServerError("Failed to get updated user")
 	}
 
-	return dto.UserToResponse(user), nil
+	return dto.UserToResponse(updatedUser), nil
 }
 
-func (s *userApplicationService) FollowUser(ctx context.Context, followerID, followingID uuid.UUID) error {
-	return s.userDomainSvc.FollowUser(ctx, followerID, followingID)
+// FollowUser follows another user
+func (s *UserApplicationService) FollowUser(ctx context.Context, followerID, followingID uuid.UUID) error {
+	cmd := commands.FollowUserCommand{
+		FollowerID:  followerID,
+		FollowingID: followingID,
+	}
+
+	return s.followUserUC.Execute(ctx, cmd)
 }
 
-func (s *userApplicationService) UnfollowUser(ctx context.Context, followerID, followingID uuid.UUID) error {
-	return s.userDomainSvc.UnfollowUser(ctx, followerID, followingID)
+// UnfollowUser unfollows another user
+func (s *UserApplicationService) UnfollowUser(ctx context.Context, followerID, followingID uuid.UUID) error {
+	cmd := commands.UnfollowUserCommand{
+		FollowerID:  followerID,
+		FollowingID: followingID,
+	}
+
+	return s.unfollowUserUC.Execute(ctx, cmd)
 }
 
-func (s *userApplicationService) GetFollowers(ctx context.Context, userID uuid.UUID, page, limit int) (*dto.PaginatedUsersResponse, error) {
-	offset := (page - 1) * limit
-	
-	users, err := s.userRepo.GetFollowers(ctx, userID, limit, offset)
-	if err != nil {
-		return nil, errors.InternalServerError("Failed to get followers")
+// GetFollowers gets user's followers
+func (s *UserApplicationService) GetFollowers(ctx context.Context, userID uuid.UUID, page, limit int) (*dto.PaginatedUsersResponse, error) {
+	query := queries.GetFollowersQuery{
+		UserID: userID,
+		Page:   page,
+		Limit:  limit,
 	}
 
-	total, err := s.userRepo.GetFollowersCount(ctx, userID)
-	if err != nil {
-		return nil, errors.InternalServerError("Failed to count followers")
+	return s.getFollowersUC.Execute(ctx, query)
+}
+
+// GetFollowing gets users that a user is following
+func (s *UserApplicationService) GetFollowing(ctx context.Context, userID uuid.UUID, page, limit int) (*dto.PaginatedUsersResponse, error) {
+	query := queries.GetFollowingQuery{
+		UserID: userID,
+		Page:   page,
+		Limit:  limit,
 	}
 
-	userResponses := make([]dto.UserResponse, len(users))
-	for i, user := range users {
-		userResponses[i] = *dto.UserToResponse(user)
-	}
+	return s.getFollowingUC.Execute(ctx, query)
+}
 
-	return &dto.PaginatedUsersResponse{
-		Users: userResponses,
+// SearchUsers searches for users
+func (s *UserApplicationService) SearchUsers(ctx context.Context, searchQuery string, page, limit int) (*dto.PaginatedUsersResponse, error) {
+	query := queries.SearchUsersQuery{
+		Query: searchQuery,
 		Page:  page,
 		Limit: limit,
-		Total: int(total),
-	}, nil
+	}
+
+	return s.searchUsersUC.Execute(ctx, query)
 }
 
-func (s *userApplicationService) GetFollowing(ctx context.Context, userID uuid.UUID, page, limit int) (*dto.PaginatedUsersResponse, error) {
-	offset := (page - 1) * limit
-	
-	users, err := s.userRepo.GetFollowing(ctx, userID, limit, offset)
-	if err != nil {
-		return nil, errors.InternalServerError("Failed to get following")
+// Google OAuth operations
+func (s *UserApplicationService) GoogleOAuthLogin(ctx context.Context, code, state string) (*dto.LoginResponse, error) {
+	cmd := user.GoogleOAuthLoginCommand{
+		Code:  code,
+		State: state,
 	}
 
-	total, err := s.userRepo.GetFollowingCount(ctx, userID)
-	if err != nil {
-		return nil, errors.InternalServerError("Failed to count following")
-	}
-
-	userResponses := make([]dto.UserResponse, len(users))
-	for i, user := range users {
-		userResponses[i] = *dto.UserToResponse(user)
-	}
-
-	return &dto.PaginatedUsersResponse{
-		Users: userResponses,
-		Page:  page,
-		Limit: limit,
-		Total: int(total),
-	}, nil
+	return s.googleOAuthLoginUC.Execute(ctx, cmd)
 }
 
-func (s *userApplicationService) SearchUsers(ctx context.Context, query string, page, limit int) (*dto.PaginatedUsersResponse, error) {
-	offset := (page - 1) * limit
-	
-	users, err := s.userRepo.SearchByUsername(ctx, query, limit, offset)
-	if err != nil {
-		return nil, errors.InternalServerError("Failed to search users")
+func (s *UserApplicationService) GoogleOAuthConnect(ctx context.Context, userID uuid.UUID, code, state string) (*dto.UserResponse, error) {
+	cmd := user.GoogleOAuthConnectCommand{
+		UserID: userID,
+		Code:   code,
+		State:  state,
 	}
 
-	// TODO: Get total count for search results
-	total := int64(len(users))
-
-	userResponses := make([]dto.UserResponse, len(users))
-	for i, user := range users {
-		userResponses[i] = *dto.UserToResponse(user)
-	}
-
-	return &dto.PaginatedUsersResponse{
-		Users: userResponses,
-		Page:  page,
-		Limit: limit,
-		Total: int(total),
-	}, nil
+	return s.googleOAuthConnectUC.Execute(ctx, cmd)
 }

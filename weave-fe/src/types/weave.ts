@@ -1,3 +1,5 @@
+import { User } from './auth';
+
 export interface WeaveContent {
   type: string;
   data: Record<string, any>;

@@ -32,11 +32,16 @@ type UserRepository interface {
 	
 	// Search operations
 	SearchByUsername(ctx context.Context, query string, limit, offset int) ([]*entities.User, error)
+	SearchByUsernameCount(ctx context.Context, query string) (int64, error)
 	SearchByEmail(ctx context.Context, query string, limit, offset int) ([]*entities.User, error)
 	
 	// Existence checks
 	ExistsByEmail(ctx context.Context, email string) (bool, error)
 	ExistsByUsername(ctx context.Context, username string) (bool, error)
+	
+	// OAuth operations
+	GetByGoogleID(ctx context.Context, googleID string) (*entities.User, error)
+	ExistsByGoogleID(ctx context.Context, googleID string) (bool, error)
 	
 	// Follow system
 	Follow(ctx context.Context, followerID, followingID uuid.UUID) error

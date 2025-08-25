@@ -16,6 +16,9 @@ type User struct {
 	Bio          *string   `gorm:"type:text" json:"bio"`
 	IsVerified   bool      `gorm:"default:false" json:"is_verified"`
 	IsActive     bool      `gorm:"default:true" json:"is_active"`
+	// OAuth fields
+	GoogleID     *string   `gorm:"size:255;index" json:"google_id,omitempty"`
+	GoogleEmail  *string   `gorm:"size:255" json:"google_email,omitempty"`
 	CreatedAt    time.Time `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt    time.Time `gorm:"autoUpdateTime" json:"updated_at"`
 

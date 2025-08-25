@@ -2,20 +2,21 @@ import { apiRequest } from './api';
 import {
   User,
   UserProfile,
-  LoginRequest,
   LoginResponse,
-  RegisterRequest,
+  SendEmailVerificationRequest,
+  VerifyEmailRequest,
+  EmailVerificationResponse,
   UpdateProfileRequest,
-} from '@/types/auth';
+} from '../types/auth';
 
 export class AuthService {
-  // Authentication endpoints
-  static async login(credentials: LoginRequest): Promise<LoginResponse> {
-    return apiRequest<LoginResponse>('POST', '/auth/login', credentials);
+  // Email verification authentication endpoints
+  static async sendEmailVerification(data: SendEmailVerificationRequest): Promise<EmailVerificationResponse> {
+    return apiRequest<EmailVerificationResponse>('POST', '/auth/send-verification', data);
   }
 
-  static async register(data: RegisterRequest): Promise<User> {
-    return apiRequest<User>('POST', '/auth/register', data);
+  static async verifyEmail(data: VerifyEmailRequest): Promise<LoginResponse> {
+    return apiRequest<LoginResponse>('POST', '/auth/verify-email', data);
   }
 
   static logout(): void {

@@ -10,7 +10,6 @@ import (
 	"weave-module/database"
 	"weave-module/models"
 	"weave-module/queue"
-	"weave-module/redis"
 )
 
 type NotificationService struct{}
@@ -176,12 +175,12 @@ func (s *NotificationService) SendWeeklyDigest(ctx context.Context) error {
 // DigestData represents user activity summary
 type DigestData struct {
 	UserName        string
-	NewWeaves       int
-	NewLikes        int
-	NewFollowers    int
-	NewComments     int
+	NewWeaves       int64
+	NewLikes        int64
+	NewFollowers    int64
+	NewComments     int64
 	TrendingWeaves  []string
-	TotalActivities int
+	TotalActivities int64
 }
 
 func (s *NotificationService) getUserDailyDigest(ctx context.Context, userID string) (*DigestData, error) {
@@ -193,18 +192,18 @@ func (s *NotificationService) getUserDailyDigest(ctx context.Context, userID str
 	// Count new weaves
 	db.WithContext(ctx).Model(&models.Weave{}).
 		Where("user_id = ? AND created_at >= ?", userID, yesterday).
-		Count((*int64)(&data.NewWeaves))
+		Count(&data.NewWeaves)
 	
 	// Count new likes on user's weaves
 	db.WithContext(ctx).Model(&models.WeaveLike{}).
 		Joins("JOIN weaves ON weave_likes.weave_id = weaves.id").
 		Where("weaves.user_id = ? AND weave_likes.created_at >= ?", userID, yesterday).
-		Count((*int64)(&data.NewLikes))
+		Count(&data.NewLikes)
 	
 	// Count new followers
 	db.WithContext(ctx).Model(&models.UserFollow{}).
 		Where("following_id = ? AND created_at >= ?", userID, yesterday).
-		Count((*int64)(&data.NewFollowers))
+		Count(&data.NewFollowers)
 	
 	data.TotalActivities = data.NewWeaves + data.NewLikes + data.NewFollowers
 	
@@ -220,16 +219,16 @@ func (s *NotificationService) getUserWeeklyDigest(ctx context.Context, userID st
 	// Count activities for the week
 	db.WithContext(ctx).Model(&models.Weave{}).
 		Where("user_id = ? AND created_at >= ?", userID, lastWeek).
-		Count((*int64)(&data.NewWeaves))
+		Count(&data.NewWeaves)
 	
 	db.WithContext(ctx).Model(&models.WeaveLike{}).
 		Joins("JOIN weaves ON weave_likes.weave_id = weaves.id").
 		Where("weaves.user_id = ? AND weave_likes.created_at >= ?", userID, lastWeek).
-		Count((*int64)(&data.NewLikes))
+		Count(&data.NewLikes)
 	
 	db.WithContext(ctx).Model(&models.UserFollow{}).
 		Where("following_id = ? AND created_at >= ?", userID, lastWeek).
-		Count((*int64)(&data.NewFollowers))
+		Count(&data.NewFollowers)
 	
 	data.TotalActivities = data.NewWeaves + data.NewLikes + data.NewFollowers
 	

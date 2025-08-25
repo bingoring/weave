@@ -144,7 +144,6 @@ func (s *AnalyticsService) UpdateWeaveStats(ctx context.Context) error {
 func (s *AnalyticsService) GenerateDailyReports(ctx context.Context) error {
 	log.Println("Generating daily analytics reports...")
 
-	db := database.GetDB()
 	yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
 
 	// Generate daily summary
@@ -170,14 +169,14 @@ func (s *AnalyticsService) GenerateDailyReports(ctx context.Context) error {
 
 type DailySummary struct {
 	Date            string `json:"date"`
-	NewUsers        int    `json:"new_users"`
-	NewWeaves       int    `json:"new_weaves"`
-	TotalViews      int    `json:"total_views"`
-	TotalLikes      int    `json:"total_likes"`
-	ActiveUsers     int    `json:"active_users"`
+	NewUsers        int64  `json:"new_users"`
+	NewWeaves       int64  `json:"new_weaves"`
+	TotalViews      int64  `json:"total_views"`
+	TotalLikes      int64  `json:"total_likes"`
+	ActiveUsers     int64  `json:"active_users"`
 	PopularChannels []struct {
 		ChannelName string `json:"channel_name"`
-		WeaveCount  int    `json:"weave_count"`
+		WeaveCount  int64  `json:"weave_count"`
 	} `json:"popular_channels"`
 }
 
@@ -188,12 +187,12 @@ func (s *AnalyticsService) generateDailySummary(ctx context.Context, date string
 	// Count new users
 	db.WithContext(ctx).Model(&models.User{}).
 		Where("DATE(created_at) = ?", date).
-		Count((*int64)(&summary.NewUsers))
+		Count(&summary.NewUsers)
 
 	// Count new weaves
 	db.WithContext(ctx).Model(&models.Weave{}).
 		Where("DATE(created_at) = ? AND is_published = ?", date, true).
-		Count((*int64)(&summary.NewWeaves))
+		Count(&summary.NewWeaves)
 
 	// Count total views from analytics events
 	db.WithContext(ctx).Raw(`
@@ -205,7 +204,7 @@ func (s *AnalyticsService) generateDailySummary(ctx context.Context, date string
 	// Count total likes
 	db.WithContext(ctx).Model(&models.WeaveLike{}).
 		Where("DATE(created_at) = ?", date).
-		Count((*int64)(&summary.TotalLikes))
+		Count(&summary.TotalLikes)
 
 	// Count active users (users who performed any action)
 	db.WithContext(ctx).Raw(`

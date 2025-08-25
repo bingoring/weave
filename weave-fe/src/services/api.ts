@@ -1,6 +1,6 @@
 import axios, { AxiosResponse } from 'axios';
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8080/api';
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8080/v1/api';
 
 // Create axios instance with default config
 const api = axios.create({
@@ -92,7 +92,7 @@ export const apiRequest = async <T = any>(
       throw new Error(response.data.error || 'API request failed');
     }
 
-    return response.data.data;
+    return response.data.data as T;
   } catch (error: any) {
     if (error.response?.data?.error) {
       throw new Error(error.response.data.error);
@@ -114,7 +114,7 @@ export const paginatedApiRequest = async <T = any>(
     }
 
     return {
-      data: response.data.data,
+      data: response.data.data as T,
       pagination: response.data.pagination,
     };
   } catch (error: any) {

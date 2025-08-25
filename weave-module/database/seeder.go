@@ -7,17 +7,19 @@ import (
 	"weave-module/models"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 )
 
 // SeedData creates initial data for development
 func SeedData() error {
-	if DB == nil {
+	db := GetDB()
+	if db == nil {
 		return fmt.Errorf("database connection not established")
 	}
 
 	// Check if data already exists
 	var userCount int64
-	DB.Model(&models.User{}).Count(&userCount)
+	db.Model(&models.User{}).Count(&userCount)
 	if userCount > 0 {
 		fmt.Println("Seed data already exists, skipping...")
 		return nil
@@ -26,25 +28,25 @@ func SeedData() error {
 	fmt.Println("Creating seed data...")
 
 	// Create seed users
-	users, err := createSeedUsers()
+	users, err := createSeedUsers(db)
 	if err != nil {
 		return fmt.Errorf("failed to create seed users: %w", err)
 	}
 
 	// Create seed channels
-	channels, err := createSeedChannels(users)
+	channels, err := createSeedChannels(db, users)
 	if err != nil {
 		return fmt.Errorf("failed to create seed channels: %w", err)
 	}
 
 	// Create seed weaves
-	weaves, err := createSeedWeaves(users, channels)
+	weaves, err := createSeedWeaves(db, users, channels)
 	if err != nil {
 		return fmt.Errorf("failed to create seed weaves: %w", err)
 	}
 
 	// Create seed collaborations
-	err = createSeedCollaborations(users, weaves)
+	err = createSeedCollaborations(db, users, weaves)
 	if err != nil {
 		return fmt.Errorf("failed to create seed collaborations: %w", err)
 	}
@@ -53,7 +55,7 @@ func SeedData() error {
 	return nil
 }
 
-func createSeedUsers() ([]models.User, error) {
+func createSeedUsers(db *gorm.DB) ([]models.User, error) {
 	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte("password123"), bcrypt.DefaultCost)
 	
 	users := []models.User{
@@ -96,7 +98,7 @@ func createSeedUsers() ([]models.User, error) {
 	}
 
 	for i := range users {
-		if err := DB.Create(&users[i]).Error; err != nil {
+		if err := db.Create(&users[i]).Error; err != nil {
 			return nil, err
 		}
 
@@ -104,7 +106,7 @@ func createSeedUsers() ([]models.User, error) {
 		profile := models.UserProfile{
 			UserID: users[i].ID,
 		}
-		if err := DB.Create(&profile).Error; err != nil {
+		if err := db.Create(&profile).Error; err != nil {
 			return nil, err
 		}
 
@@ -112,7 +114,7 @@ func createSeedUsers() ([]models.User, error) {
 		analytics := models.UserAnalytics{
 			UserID: users[i].ID,
 		}
-		if err := DB.Create(&analytics).Error; err != nil {
+		if err := db.Create(&analytics).Error; err != nil {
 			return nil, err
 		}
 	}
@@ -128,7 +130,7 @@ func createSeedUsers() ([]models.User, error) {
 	}
 
 	for _, follow := range follows {
-		if err := DB.Create(&follow).Error; err != nil {
+		if err := db.Create(&follow).Error; err != nil {
 			return nil, err
 		}
 	}
@@ -136,7 +138,7 @@ func createSeedUsers() ([]models.User, error) {
 	return users, nil
 }
 
-func createSeedChannels(users []models.User) ([]models.Channel, error) {
+func createSeedChannels(db *gorm.DB, users []models.User) ([]models.Channel, error) {
 	channels := []models.Channel{
 		{
 			ID:          uuid.New(),
@@ -165,7 +167,7 @@ func createSeedChannels(users []models.User) ([]models.Channel, error) {
 	}
 
 	for i := range channels {
-		if err := DB.Create(&channels[i]).Error; err != nil {
+		if err := db.Create(&channels[i]).Error; err != nil {
 			return nil, err
 		}
 	}
@@ -173,7 +175,7 @@ func createSeedChannels(users []models.User) ([]models.Channel, error) {
 	return channels, nil
 }
 
-func createSeedWeaves(users []models.User, channels []models.Channel) ([]models.Weave, error) {
+func createSeedWeaves(db *gorm.DB, users []models.User, channels []models.Channel) ([]models.Weave, error) {
 	weaves := []models.Weave{
 		{
 			ID:                  uuid.New(),
@@ -214,7 +216,7 @@ func createSeedWeaves(users []models.User, channels []models.Channel) ([]models.
 	}
 
 	for i := range weaves {
-		if err := DB.Create(&weaves[i]).Error; err != nil {
+		if err := db.Create(&weaves[i]).Error; err != nil {
 			return nil, err
 		}
 
@@ -225,7 +227,7 @@ func createSeedWeaves(users []models.User, channels []models.Channel) ([]models.
 			UniqueViews: 8 + i*3,
 			TotalLikes:  2 + i,
 		}
-		if err := DB.Create(&analytics).Error; err != nil {
+		if err := db.Create(&analytics).Error; err != nil {
 			return nil, err
 		}
 
@@ -237,7 +239,7 @@ func createSeedWeaves(users []models.User, channels []models.Channel) ([]models.
 			Title:       "Weave 생성됨",
 			Description: stringPtr("새로운 Weave가 생성되었습니다."),
 		}
-		if err := DB.Create(&timeline).Error; err != nil {
+		if err := db.Create(&timeline).Error; err != nil {
 			return nil, err
 		}
 	}
@@ -245,7 +247,7 @@ func createSeedWeaves(users []models.User, channels []models.Channel) ([]models.
 	return weaves, nil
 }
 
-func createSeedCollaborations(users []models.User, weaves []models.Weave) error {
+func createSeedCollaborations(db *gorm.DB, users []models.User, weaves []models.Weave) error {
 	// Create some contributions
 	contributions := []models.Contribution{
 		{
@@ -269,7 +271,7 @@ func createSeedCollaborations(users []models.User, weaves []models.Weave) error 
 	}
 
 	for i := range contributions {
-		if err := DB.Create(&contributions[i]).Error; err != nil {
+		if err := db.Create(&contributions[i]).Error; err != nil {
 			return err
 		}
 	}
@@ -291,7 +293,7 @@ func createSeedCollaborations(users []models.User, weaves []models.Weave) error 
 	}
 
 	for i := range comments {
-		if err := DB.Create(&comments[i]).Error; err != nil {
+		if err := db.Create(&comments[i]).Error; err != nil {
 			return err
 		}
 	}
@@ -306,7 +308,7 @@ func createSeedCollaborations(users []models.User, weaves []models.Weave) error 
 	}
 
 	for i := range likes {
-		if err := DB.Create(&likes[i]).Error; err != nil {
+		if err := db.Create(&likes[i]).Error; err != nil {
 			return err
 		}
 	}

@@ -45,6 +45,9 @@ type WeaveRepository interface {
 	Count(ctx context.Context) (int64, error)
 	CountByChannel(ctx context.Context, channelID uuid.UUID) (int64, error)
 	CountByUser(ctx context.Context, userID uuid.UUID) (int64, error)
+	CountForkedByUser(ctx context.Context, userID uuid.UUID) (int64, error)
+	CountLikedByUser(ctx context.Context, userID uuid.UUID) (int64, error)
+	CountContributionsByUser(ctx context.Context, userID uuid.UUID) (int64, error)
 	GetTrending(ctx context.Context, timeframe string, limit, offset int) ([]*entities.Weave, error)
 	GetPopular(ctx context.Context, limit, offset int) ([]*entities.Weave, error)
 	

@@ -10,6 +10,16 @@ import (
 	"github.com/google/uuid"
 )
 
+// Pagination represents pagination information
+type Pagination struct {
+	Page       int   `json:"page"`
+	Limit      int   `json:"limit"`
+	Total      int64 `json:"total"`
+	TotalPages int   `json:"total_pages"`
+	HasNext    bool  `json:"has_next"`
+	HasPrev    bool  `json:"has_prev"`
+}
+
 // String helpers
 func TrimAndLower(s string) string {
 	return strings.ToLower(strings.TrimSpace(s))

@@ -1,9 +1,6 @@
 package handlers
 
 import (
-	"net/http"
-	"strconv"
-
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"weave-module/utils"
@@ -12,71 +9,71 @@ import (
 	"weave-be/internal/application/services"
 )
 
-// UserHandler handles HTTP requests related to users
-// This follows the Controller pattern and handles presentation concerns
+// UserHandler handles HTTP requests related to users using Use Case based architecture
 type UserHandler struct {
-	userAppService services.UserApplicationService
+	userService *services.UserApplicationService
 }
 
 // NewUserHandler creates a new user handler
-func NewUserHandler(userAppService services.UserApplicationService) *UserHandler {
+func NewUserHandler(userService *services.UserApplicationService) *UserHandler {
 	return &UserHandler{
-		userAppService: userAppService,
+		userService: userService,
 	}
 }
 
-// RegisterUser handles user registration
-// POST /api/auth/register
-func (h *UserHandler) RegisterUser(c *gin.Context) {
-	var req dto.RegisterUserRequest
+// SendEmailVerification handles email verification code sending
+func (h *UserHandler) SendEmailVerification(c *gin.Context) {
+	var req struct {
+		Email string `json:"email" binding:"required,email"`
+	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.ValidationErrorResponse(c, err.Error())
+		utils.ErrorResponse(c, errors.BadRequest("Invalid request body"))
 		return
 	}
 
-	user, err := h.userAppService.RegisterUser(c.Request.Context(), req)
+	response, err := h.userService.SendEmailVerification(c.Request.Context(), req.Email)
 	if err != nil {
 		utils.ErrorResponse(c, err)
 		return
 	}
 
-	utils.CreatedResponse(c, "User registered successfully", user)
+	utils.SuccessResponse(c, "Verification code sent", response)
 }
 
-// LoginUser handles user authentication
-// POST /api/auth/login
-func (h *UserHandler) LoginUser(c *gin.Context) {
-	var req dto.LoginUserRequest
+// VerifyEmailAuth handles email verification code confirmation and login
+func (h *UserHandler) VerifyEmailAuth(c *gin.Context) {
+	var req struct {
+		Code string `json:"code" binding:"required,len=6"`
+	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.ValidationErrorResponse(c, err.Error())
+		utils.ErrorResponse(c, errors.BadRequest("Invalid request body"))
 		return
 	}
 
-	response, err := h.userAppService.LoginUser(c.Request.Context(), req)
+	response, err := h.userService.VerifyEmailAuth(c.Request.Context(), req.Code)
 	if err != nil {
 		utils.ErrorResponse(c, err)
 		return
 	}
 
-	utils.SuccessResponse(c, "Login successful", response)
+	utils.SuccessResponse(c, "Email verification successful", response)
 }
 
-// GetProfile gets the authenticated user's profile
-// GET /api/users/profile
+// GetProfile handles get user profile requests (requires authentication)
 func (h *UserHandler) GetProfile(c *gin.Context) {
-	userIDStr, exists := c.Get("user_id")
+	userIDValue, exists := c.Get("user_id")
 	if !exists {
 		utils.ErrorResponse(c, errors.Unauthorized("User not authenticated"))
 		return
 	}
 
-	userID, err := uuid.Parse(userIDStr.(string))
-	if err != nil {
-		utils.ErrorResponse(c, errors.BadRequest("Invalid user ID"))
+	userID, ok := userIDValue.(uuid.UUID)
+	if !ok {
+		utils.ErrorResponse(c, errors.InternalServerError("Invalid user ID format"))
 		return
 	}
 
-	profile, err := h.userAppService.GetUserProfile(c.Request.Context(), userID)
+	profile, err := h.userService.GetUserProfile(c.Request.Context(), userID)
 	if err != nil {
 		utils.ErrorResponse(c, err)
 		return
@@ -85,8 +82,7 @@ func (h *UserHandler) GetProfile(c *gin.Context) {
 	utils.SuccessResponse(c, "Profile retrieved successfully", profile)
 }
 
-// GetUserByID gets a user by ID
-// GET /api/users/:id
+// GetUserByID handles get user by ID requests
 func (h *UserHandler) GetUserByID(c *gin.Context) {
 	userIDStr := c.Param("id")
 	userID, err := uuid.Parse(userIDStr)
@@ -95,7 +91,7 @@ func (h *UserHandler) GetUserByID(c *gin.Context) {
 		return
 	}
 
-	user, err := h.userAppService.GetUserByID(c.Request.Context(), userID)
+	user, err := h.userService.GetUserByID(c.Request.Context(), userID)
 	if err != nil {
 		utils.ErrorResponse(c, err)
 		return
@@ -104,28 +100,27 @@ func (h *UserHandler) GetUserByID(c *gin.Context) {
 	utils.SuccessResponse(c, "User retrieved successfully", user)
 }
 
-// UpdateProfile updates the authenticated user's profile
-// PUT /api/users/profile
+// UpdateProfile handles update user profile requests
 func (h *UserHandler) UpdateProfile(c *gin.Context) {
-	userIDStr, exists := c.Get("user_id")
+	userIDValue, exists := c.Get("user_id")
 	if !exists {
 		utils.ErrorResponse(c, errors.Unauthorized("User not authenticated"))
 		return
 	}
 
-	userID, err := uuid.Parse(userIDStr.(string))
-	if err != nil {
-		utils.ErrorResponse(c, errors.BadRequest("Invalid user ID"))
+	userID, ok := userIDValue.(uuid.UUID)
+	if !ok {
+		utils.ErrorResponse(c, errors.InternalServerError("Invalid user ID format"))
 		return
 	}
 
 	var req dto.UpdateUserProfileRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.ValidationErrorResponse(c, err.Error())
+		utils.ErrorResponse(c, errors.BadRequest("Invalid request body"))
 		return
 	}
 
-	user, err := h.userAppService.UpdateUserProfile(c.Request.Context(), userID, req)
+	user, err := h.userService.UpdateUserProfile(c.Request.Context(), userID, req)
 	if err != nil {
 		utils.ErrorResponse(c, err)
 		return
@@ -134,29 +129,28 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 	utils.SuccessResponse(c, "Profile updated successfully", user)
 }
 
-// FollowUser follows another user
-// POST /api/users/:id/follow
+// FollowUser handles follow user requests
 func (h *UserHandler) FollowUser(c *gin.Context) {
-	followerIDStr, exists := c.Get("user_id")
+	followerIDValue, exists := c.Get("user_id")
 	if !exists {
 		utils.ErrorResponse(c, errors.Unauthorized("User not authenticated"))
 		return
 	}
 
-	followerID, err := uuid.Parse(followerIDStr.(string))
-	if err != nil {
-		utils.ErrorResponse(c, errors.BadRequest("Invalid follower ID"))
+	followerID, ok := followerIDValue.(uuid.UUID)
+	if !ok {
+		utils.ErrorResponse(c, errors.InternalServerError("Invalid user ID format"))
 		return
 	}
 
 	followingIDStr := c.Param("id")
 	followingID, err := uuid.Parse(followingIDStr)
 	if err != nil {
-		utils.ErrorResponse(c, errors.BadRequest("Invalid user ID to follow"))
+		utils.ErrorResponse(c, errors.BadRequest("Invalid user ID"))
 		return
 	}
 
-	err = h.userAppService.FollowUser(c.Request.Context(), followerID, followingID)
+	err = h.userService.FollowUser(c.Request.Context(), followerID, followingID)
 	if err != nil {
 		utils.ErrorResponse(c, err)
 		return
@@ -165,29 +159,28 @@ func (h *UserHandler) FollowUser(c *gin.Context) {
 	utils.SuccessResponse(c, "User followed successfully", nil)
 }
 
-// UnfollowUser unfollows another user
-// DELETE /api/users/:id/follow
+// UnfollowUser handles unfollow user requests
 func (h *UserHandler) UnfollowUser(c *gin.Context) {
-	followerIDStr, exists := c.Get("user_id")
+	followerIDValue, exists := c.Get("user_id")
 	if !exists {
 		utils.ErrorResponse(c, errors.Unauthorized("User not authenticated"))
 		return
 	}
 
-	followerID, err := uuid.Parse(followerIDStr.(string))
-	if err != nil {
-		utils.ErrorResponse(c, errors.BadRequest("Invalid follower ID"))
+	followerID, ok := followerIDValue.(uuid.UUID)
+	if !ok {
+		utils.ErrorResponse(c, errors.InternalServerError("Invalid user ID format"))
 		return
 	}
 
 	followingIDStr := c.Param("id")
 	followingID, err := uuid.Parse(followingIDStr)
 	if err != nil {
-		utils.ErrorResponse(c, errors.BadRequest("Invalid user ID to unfollow"))
+		utils.ErrorResponse(c, errors.BadRequest("Invalid user ID"))
 		return
 	}
 
-	err = h.userAppService.UnfollowUser(c.Request.Context(), followerID, followingID)
+	err = h.userService.UnfollowUser(c.Request.Context(), followerID, followingID)
 	if err != nil {
 		utils.ErrorResponse(c, err)
 		return
@@ -196,8 +189,7 @@ func (h *UserHandler) UnfollowUser(c *gin.Context) {
 	utils.SuccessResponse(c, "User unfollowed successfully", nil)
 }
 
-// GetFollowers gets user's followers
-// GET /api/users/:id/followers
+// GetFollowers handles get followers requests
 func (h *UserHandler) GetFollowers(c *gin.Context) {
 	userIDStr := c.Param("id")
 	userID, err := uuid.Parse(userIDStr)
@@ -206,9 +198,9 @@ func (h *UserHandler) GetFollowers(c *gin.Context) {
 		return
 	}
 
-	page, limit := h.getPaginationParams(c)
+	page, limit := utils.GetPaginationParams(c)
 
-	followers, err := h.userAppService.GetFollowers(c.Request.Context(), userID, page, limit)
+	followers, err := h.userService.GetFollowers(c.Request.Context(), userID, page, limit)
 	if err != nil {
 		utils.ErrorResponse(c, err)
 		return
@@ -218,8 +210,7 @@ func (h *UserHandler) GetFollowers(c *gin.Context) {
 	utils.PaginatedSuccessResponse(c, "Followers retrieved successfully", followers.Users, pagination)
 }
 
-// GetFollowing gets users that a user is following
-// GET /api/users/:id/following
+// GetFollowing handles get following requests
 func (h *UserHandler) GetFollowing(c *gin.Context) {
 	userIDStr := c.Param("id")
 	userID, err := uuid.Parse(userIDStr)
@@ -228,9 +219,9 @@ func (h *UserHandler) GetFollowing(c *gin.Context) {
 		return
 	}
 
-	page, limit := h.getPaginationParams(c)
+	page, limit := utils.GetPaginationParams(c)
 
-	following, err := h.userAppService.GetFollowing(c.Request.Context(), userID, page, limit)
+	following, err := h.userService.GetFollowing(c.Request.Context(), userID, page, limit)
 	if err != nil {
 		utils.ErrorResponse(c, err)
 		return
@@ -240,8 +231,7 @@ func (h *UserHandler) GetFollowing(c *gin.Context) {
 	utils.PaginatedSuccessResponse(c, "Following retrieved successfully", following.Users, pagination)
 }
 
-// SearchUsers searches for users
-// GET /api/users/search
+// SearchUsers handles search users requests
 func (h *UserHandler) SearchUsers(c *gin.Context) {
 	query := c.Query("q")
 	if query == "" {
@@ -249,34 +239,14 @@ func (h *UserHandler) SearchUsers(c *gin.Context) {
 		return
 	}
 
-	page, limit := h.getPaginationParams(c)
+	page, limit := utils.GetPaginationParams(c)
 
-	results, err := h.userAppService.SearchUsers(c.Request.Context(), query, page, limit)
+	users, err := h.userService.SearchUsers(c.Request.Context(), query, page, limit)
 	if err != nil {
 		utils.ErrorResponse(c, err)
 		return
 	}
 
-	pagination := utils.CalculatePagination(page, limit, int64(results.Total))
-	utils.PaginatedSuccessResponse(c, "Users found", results.Users, pagination)
-}
-
-// Helper methods
-func (h *UserHandler) getPaginationParams(c *gin.Context) (page, limit int) {
-	page = 1
-	limit = 20
-
-	if p := c.Query("page"); p != "" {
-		if parsed, err := strconv.Atoi(p); err == nil && parsed > 0 {
-			page = parsed
-		}
-	}
-
-	if l := c.Query("limit"); l != "" {
-		if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 && parsed <= 100 {
-			limit = parsed
-		}
-	}
-
-	return page, limit
+	pagination := utils.CalculatePagination(page, limit, int64(users.Total))
+	utils.PaginatedSuccessResponse(c, "Users retrieved successfully", users.Users, pagination)
 }

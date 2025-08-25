@@ -21,8 +21,6 @@ func NewTrendsService() *TrendsService {
 // UpdateTrendingWeaves calculates and updates trending weaves
 func (s *TrendsService) UpdateTrendingWeaves(ctx context.Context) error {
 	log.Println("Updating trending weaves...")
-
-	db := database.GetDB()
 	
 	// Calculate trending score based on recent activity
 	// Score = (likes * 3 + views * 1 + comments * 5) / time_decay_factor
@@ -76,8 +74,6 @@ func (s *TrendsService) UpdateTrendingWeaves(ctx context.Context) error {
 // UpdatePopularChannels updates popular channels based on activity
 func (s *TrendsService) UpdatePopularChannels(ctx context.Context) error {
 	log.Println("Updating popular channels...")
-
-	db := database.GetDB()
 	
 	// Calculate channel popularity based on recent activity
 	popularChannels, err := s.calculatePopularChannels(ctx)

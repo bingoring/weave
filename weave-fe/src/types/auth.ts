@@ -17,15 +17,18 @@ export interface UserProfile extends User {
   contributions_count: number;
 }
 
-export interface RegisterRequest {
-  username: string;
+export interface SendEmailVerificationRequest {
   email: string;
-  password: string;
 }
 
-export interface LoginRequest {
-  email: string;
-  password: string;
+export interface VerifyEmailRequest {
+  code: string;
+}
+
+export interface EmailVerificationResponse {
+  message: string;
+  expires_in: number;
+  code?: string; // Only for development
 }
 
 export interface LoginResponse {
@@ -46,8 +49,8 @@ export interface AuthState {
 }
 
 export interface AuthActions {
-  login: (credentials: LoginRequest) => Promise<void>;
-  register: (data: RegisterRequest) => Promise<void>;
+  sendEmailVerification: (data: SendEmailVerificationRequest) => Promise<EmailVerificationResponse>;
+  verifyEmail: (data: VerifyEmailRequest) => Promise<void>;
   logout: () => void;
   updateProfile: (data: UpdateProfileRequest) => Promise<void>;
   setLoading: (loading: boolean) => void;

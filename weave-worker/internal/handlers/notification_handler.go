@@ -25,13 +25,25 @@ func (h *NotificationHandler) HandleNotification(ctx context.Context, msg queue.
 	log.Printf("Processing notification for user %s: %s", msg.UserID, msg.Title)
 
 	// Process the notification based on its type
+	var data map[string]interface{}
+	if msg.Data != nil {
+		var ok bool
+		data, ok = msg.Data.(map[string]interface{})
+		if !ok {
+			log.Printf("Invalid data format for notification: %v", msg.Data)
+			data = make(map[string]interface{})
+		}
+	} else {
+		data = make(map[string]interface{})
+	}
+	
 	err := h.notificationService.ProcessNotificationByType(
 		ctx,
 		msg.Type,
 		msg.UserID,
 		msg.Title,
 		msg.Message,
-		msg.Data,
+		data,
 	)
 
 	if err != nil {

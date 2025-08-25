@@ -35,6 +35,8 @@ func (r *userRepositoryImpl) entityToModel(user *entities.User) *models.User {
 		Bio:          user.Bio,
 		IsVerified:   user.IsVerified,
 		IsActive:     user.IsActive,
+		GoogleID:     user.GoogleID,
+		GoogleEmail:  user.GoogleEmail,
 		CreatedAt:    user.CreatedAt,
 		UpdatedAt:    user.UpdatedAt,
 	}
@@ -50,6 +52,8 @@ func (r *userRepositoryImpl) modelToEntity(model *models.User) *entities.User {
 		Bio:          model.Bio,
 		IsVerified:   model.IsVerified,
 		IsActive:     model.IsActive,
+		GoogleID:     model.GoogleID,
+		GoogleEmail:  model.GoogleEmail,
 		CreatedAt:    model.CreatedAt,
 		UpdatedAt:    model.UpdatedAt,
 	}
@@ -167,6 +171,15 @@ func (r *userRepositoryImpl) SearchByUsername(ctx context.Context, query string,
 	return r.modelsToEntities(models), nil
 }
 
+func (r *userRepositoryImpl) SearchByUsernameCount(ctx context.Context, query string) (int64, error) {
+	var count int64
+	err := r.db.WithContext(ctx).
+		Model(&models.User{}).
+		Where("username ILIKE ? AND is_active = ?", "%"+query+"%", true).
+		Count(&count).Error
+	return count, err
+}
+
 func (r *userRepositoryImpl) SearchByEmail(ctx context.Context, query string, limit, offset int) ([]*entities.User, error) {
 	var models []*models.User
 	err := r.db.WithContext(ctx).
@@ -264,4 +277,23 @@ func (r *userRepositoryImpl) GetFollowingCount(ctx context.Context, userID uuid.
 		Where("follower_id = ?", userID).
 		Count(&count).Error
 	return count, err
+}
+
+// OAuth operations
+func (r *userRepositoryImpl) GetByGoogleID(ctx context.Context, googleID string) (*entities.User, error) {
+	var model models.User
+	err := r.db.WithContext(ctx).Where("google_id = ?", googleID).First(&model).Error
+	if err != nil {
+		return nil, err
+	}
+	return r.modelToEntity(&model), nil
+}
+
+func (r *userRepositoryImpl) ExistsByGoogleID(ctx context.Context, googleID string) (bool, error) {
+	var count int64
+	err := r.db.WithContext(ctx).
+		Model(&models.User{}).
+		Where("google_id = ?", googleID).
+		Count(&count).Error
+	return count > 0, err
 }

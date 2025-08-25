@@ -1,20 +1,20 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import {
-  User,
   AuthState,
   AuthActions,
-  LoginRequest,
-  RegisterRequest,
+  SendEmailVerificationRequest,
+  VerifyEmailRequest,
+  EmailVerificationResponse,
   UpdateProfileRequest,
-} from '@/types/auth';
-import AuthService from '@/services/authService';
+} from '../types/auth';
+import AuthService from '../services/authService';
 
 interface AuthStore extends AuthState, AuthActions {}
 
 export const useAuthStore = create<AuthStore>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       // Initial state
       user: null,
       token: null,
@@ -22,10 +22,22 @@ export const useAuthStore = create<AuthStore>()(
       isLoading: false,
 
       // Actions
-      login: async (credentials: LoginRequest) => {
+      sendEmailVerification: async (data: SendEmailVerificationRequest): Promise<EmailVerificationResponse> => {
         set({ isLoading: true });
         try {
-          const response = await AuthService.login(credentials);
+          const response = await AuthService.sendEmailVerification(data);
+          set({ isLoading: false });
+          return response;
+        } catch (error) {
+          set({ isLoading: false });
+          throw error;
+        }
+      },
+
+      verifyEmail: async (data: VerifyEmailRequest) => {
+        set({ isLoading: true });
+        try {
+          const response = await AuthService.verifyEmail(data);
           
           // Save to localStorage
           AuthService.setToken(response.token);
@@ -35,24 +47,6 @@ export const useAuthStore = create<AuthStore>()(
             user: response.user,
             token: response.token,
             isAuthenticated: true,
-            isLoading: false,
-          });
-        } catch (error) {
-          set({ isLoading: false });
-          throw error;
-        }
-      },
-
-      register: async (data: RegisterRequest) => {
-        set({ isLoading: true });
-        try {
-          const user = await AuthService.register(data);
-          
-          // After registration, user needs to login
-          set({
-            user: null,
-            token: null,
-            isAuthenticated: false,
             isLoading: false,
           });
         } catch (error) {

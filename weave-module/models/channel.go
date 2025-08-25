@@ -14,6 +14,7 @@ type Channel struct {
 	Description *string   `gorm:"type:text" json:"description"`
 	CoverImage  *string   `gorm:"size:500" json:"cover_image"`
 	IsActive    bool      `gorm:"default:true" json:"is_active"`
+	IsPublic    bool      `gorm:"default:true" json:"is_public"`
 	CreatedAt   time.Time `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt   time.Time `gorm:"autoUpdateTime" json:"updated_at"`
 

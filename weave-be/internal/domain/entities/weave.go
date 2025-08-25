@@ -110,6 +110,29 @@ func NewWeave(userID, channelID uuid.UUID, title string, content WeaveContent) *
 	}
 }
 
+// WeaveVersion represents a historical version of a weave
+type WeaveVersion struct {
+	ID        uuid.UUID
+	WeaveID   uuid.UUID
+	Version   int
+	Title     string
+	Content   WeaveContent
+	ChangeLog *string
+	CreatedAt time.Time
+}
+
+func NewWeaveVersion(weaveID uuid.UUID, version int, title string, content WeaveContent, changeLog *string) *WeaveVersion {
+	return &WeaveVersion{
+		ID:        uuid.New(),
+		WeaveID:   weaveID,
+		Version:   version,
+		Title:     title,
+		Content:   content,
+		ChangeLog: changeLog,
+		CreatedAt: time.Now(),
+	}
+}
+
 func ForkWeave(originalWeave *Weave, newUserID uuid.UUID) *Weave {
 	forkedWeave := &Weave{
 		ID:            uuid.New(),

@@ -5,7 +5,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/weave/weave-scheduler/internal/services"
+	"weave-scheduler/internal/services"
 )
 
 // SendPendingNotifications creates a job function for sending pending notifications

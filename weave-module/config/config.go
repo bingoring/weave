@@ -12,6 +12,7 @@ type Config struct {
 	Queue    QueueConfig
 	Server   ServerConfig
 	JWT      JWTConfig
+	OAuth    OAuthConfig
 	External ExternalConfig
 }
 
@@ -52,6 +53,18 @@ type ServerConfig struct {
 
 type JWTConfig struct {
 	Secret string
+}
+
+// OAuthConfig OAuth configuration for all providers
+type OAuthConfig struct {
+	Google GoogleOAuthConfig `json:"google"`
+}
+
+type GoogleOAuthConfig struct {
+	ClientID     string `json:"client_id"`
+	ClientSecret string `json:"client_secret"`
+	RedirectURL  string `json:"redirect_url"`
+	Scopes       string `json:"scopes"`
 }
 
 type ExternalConfig struct {
@@ -107,6 +120,14 @@ func Load() *Config {
 		},
 		JWT: JWTConfig{
 			Secret: getEnv("JWT_SECRET", "your-secret-key"),
+		},
+		OAuth: OAuthConfig{
+			Google: GoogleOAuthConfig{
+				ClientID:     getEnv("GOOGLE_CLIENT_ID", ""),
+				ClientSecret: getEnv("GOOGLE_CLIENT_SECRET", ""),
+				RedirectURL:  getEnv("GOOGLE_REDIRECT_URL", "http://localhost:8080/api/auth/google/callback"),
+				Scopes:       getEnv("GOOGLE_SCOPES", "profile email"),
+			},
 		},
 		External: ExternalConfig{
 			AWS: AWSConfig{

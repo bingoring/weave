@@ -5,9 +5,9 @@ import { QueryClient, QueryClientProvider } from 'react-query';
 import styled, { createGlobalStyle } from 'styled-components';
 
 // Components
-import LoginForm from '@/components/auth/LoginForm';
-import RegisterForm from '@/components/auth/RegisterForm';
-import { useAuthStore } from '@/store/authStore';
+import LoginForm from './components/auth/LoginForm';
+import RegisterForm from './components/auth/RegisterForm';
+import { useAuthStore } from './store/authStore';
 
 // Global styles
 const GlobalStyle = createGlobalStyle`
